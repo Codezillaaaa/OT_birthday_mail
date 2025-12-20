@@ -317,6 +317,8 @@ def send_single_email(sender_email, to_email, username):
                 "to": [to_email],
                 "subject": subject,
                 "html": html_content,
+                "reply_to": "officialopentalk@gmail.com",  # Users can reply to this
+                "bcc": ["officialopentalk@gmail.com"],  # Get a copy of every email sent
             }
             
             email_response = resend.Emails.send(params)
