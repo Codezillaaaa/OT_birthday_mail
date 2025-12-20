@@ -125,13 +125,13 @@ EMAIL_FOOTER = """
 <br><br>
 <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; margin-top: 20px;">
     <p style="color: white; font-size: 16px; margin-bottom: 15px;">Stay Connected with Language Speaking App!</p>
-    <a href="https://play.google.com/store/apps/details?id=com.open.talk" style="display: inline-block; background: white; color: #667eea; padding: 10px 20px; border-radius: 25px; text-decoration: none; margin: 5px; font-weight: bold;">📱 Download App</a>
-    <a href="https://t.me/AppOpentalk" style="display: inline-block; background: white; color: #667eea; padding: 10px 20px; border-radius: 25px; text-decoration: none; margin: 5px; font-weight: bold;">💬 Telegram</a>
-    <a href="https://www.instagram.com/english_speaking_app_official" style="display: inline-block; background: white; color: #667eea; padding: 10px 20px; border-radius: 25px; text-decoration: none; margin: 5px; font-weight: bold;">📸 Instagram</a>
-    <a href="https://www.youtube.com/@EnglishSpeakAppOfficial" style="display: inline-block; background: white; color: #667eea; padding: 10px 20px; border-radius: 25px; text-decoration: none; margin: 5px; font-weight: bold;">📺 YouTube</a>
+    <a href="https://play.google.com/store/apps/details?id=com.open.talk" style="display: inline-block; background: white; color: #667eea; padding: 8px 12px; border-radius: 20px; text-decoration: none; margin: 3px; font-weight: bold; font-size: 13px;">📱 App</a>
+    <a href="https://t.me/AppOpentalk" style="display: inline-block; background: white; color: #667eea; padding: 8px 12px; border-radius: 20px; text-decoration: none; margin: 3px; font-weight: bold; font-size: 13px;">💬 Telegram</a>
+    <a href="https://www.instagram.com/english_speaking_app_official" style="display: inline-block; background: white; color: #667eea; padding: 8px 12px; border-radius: 20px; text-decoration: none; margin: 3px; font-weight: bold; font-size: 13px;">📸 Instagram</a>
+    <a href="https://www.youtube.com/@EnglishSpeakAppOfficial" style="display: inline-block; background: white; color: #667eea; padding: 8px 12px; border-radius: 20px; text-decoration: none; margin: 3px; font-weight: bold; font-size: 13px;">📺 YouTube</a>
 </div>
 <p style="text-align: center; color: #999; font-size: 12px; margin-top: 20px;">
-    © 2024 Language Speaking App. Made with ❤️ for language learners worldwide.
+    Made with ❤️ for language learners worldwide.
 </p>
 """
 
