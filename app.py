@@ -85,7 +85,7 @@ def init_mongo():
                 connectTimeoutMS=Config.MONGO_TIMEOUT_MS
             )
             mongo_client.admin.command('ping')
-            users_col = mongo_client["Opentalk"]["users"]
+            users_col = mongo_client["test"]["users"]
             service_state["mongo_connected"] = True
             logger.info("MongoDB connected successfully!")
             return True
@@ -223,7 +223,7 @@ def get_today_birthdays():
     
     # Re-get the collection reference for serverless safety
     if mongo_client is not None:
-        users_col = mongo_client["Opentalk"]["users"]
+        users_col = mongo_client["test"]["users"]
     
     now = get_ist_now()
     today_day = now.day
