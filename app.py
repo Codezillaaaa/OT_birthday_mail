@@ -439,9 +439,13 @@ def wake():
     now = get_ist_now()
     service_state["last_wake_time"] = now.isoformat()
     
-    # Ensure MongoDB is connected
+    # Ensure MongoDB is connected and service is ready
     if not service_state["mongo_connected"]:
-        init_mongo()
+        if init_mongo():
+            service_state["is_ready"] = True
+    elif not service_state["is_ready"]:
+        # MongoDB connected but is_ready not set (edge case)
+        service_state["is_ready"] = True
     
     return jsonify({
         "status": "awake",
