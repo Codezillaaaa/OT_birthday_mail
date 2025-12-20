@@ -118,12 +118,12 @@ init_thread.start()
 # ------------------ Email Templates ------------------
 BIRTHDAY_MESSAGES = [
     "Wishing you a fantastic birthday filled with smiles, good vibes, and great conversations! 🎂🥳<br><br>Here's to learning, speaking, and making this year unforgettable. 💬🌍",
-    "Happy Birthday! 🎉<br><br>Your voice adds color to OpenTalk, and we're grateful to have you with us. Keep inspiring! 🌟",
-    "May your birthday be as meaningful as your conversations on OpenTalk. Have a great one! 🎈💬",
+    "Happy Birthday! 🎉<br><br>Your voice adds color to Language Speaking App, and we're grateful to have you with us. Keep inspiring! 🌟",
+    "May your birthday be as meaningful as your conversations on Language Speaking App. Have a great one! 🎈💬",
     "Cheers to you, {username}! 🎉<br><br>Wishing you joy, confidence, and incredible language journeys ahead.",
     "Speak boldly. Live freely. Learn constantly. That's our birthday wish for you! 🎂💬",
-    "Happy Birthday from Team OpenTalk! 🥳<br><br>May today bring laughter and your voice reach even more people.",
-    "One voice can change the world. Yours already is. 🎤 Happy Birthday from OpenTalk!",
+    "Happy Birthday from Team Language Speaking App! 🥳<br><br>May today bring laughter and your voice reach even more people.",
+    "One voice can change the world. Yours already is. 🎤 Happy Birthday from Language Speaking App!",
     "Here's to another year of being amazing — and speaking like a pro. 🎉🎤 Enjoy your day, {username}!",
     "On your birthday, we celebrate your growth, voice, and confidence. Keep it up! 💪💬",
     "We hope your birthday brings you closer to your goals and to great conversations. 🎁🎉",
@@ -132,13 +132,14 @@ BIRTHDAY_MESSAGES = [
 EMAIL_FOOTER = """
 <br><br>
 <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; margin-top: 20px;">
-    <p style="color: white; font-size: 16px; margin-bottom: 15px;">Stay Connected with OpenTalk!</p>
+    <p style="color: white; font-size: 16px; margin-bottom: 15px;">Stay Connected with Language Speaking App!</p>
     <a href="https://play.google.com/store/apps/details?id=com.open.talk" style="display: inline-block; background: white; color: #667eea; padding: 10px 20px; border-radius: 25px; text-decoration: none; margin: 5px; font-weight: bold;">📱 Download App</a>
     <a href="https://t.me/AppOpentalk" style="display: inline-block; background: white; color: #667eea; padding: 10px 20px; border-radius: 25px; text-decoration: none; margin: 5px; font-weight: bold;">💬 Telegram</a>
-    <a href="https://www.youtube.com/@OpentalkLingo" style="display: inline-block; background: white; color: #667eea; padding: 10px 20px; border-radius: 25px; text-decoration: none; margin: 5px; font-weight: bold;">📺 YouTube</a>
+    <a href="https://www.instagram.com/english_speaking_app_official" style="display: inline-block; background: white; color: #667eea; padding: 10px 20px; border-radius: 25px; text-decoration: none; margin: 5px; font-weight: bold;">📸 Instagram</a>
+    <a href="https://www.youtube.com/@EnglishSpeakAppOfficial" style="display: inline-block; background: white; color: #667eea; padding: 10px 20px; border-radius: 25px; text-decoration: none; margin: 5px; font-weight: bold;">📺 YouTube</a>
 </div>
 <p style="text-align: center; color: #999; font-size: 12px; margin-top: 20px;">
-    © 2024 OpenTalk. Made with ❤️ for language learners worldwide.
+    © 2024 Language Speaking App. Made with ❤️ for language learners worldwide.
 </p>
 """
 
@@ -297,11 +298,11 @@ def get_today_birthdays():
 
 def send_single_email(server, sender_email, to_email, username):
     """Send a single birthday email with retry logic"""
-    subject = "🎉 Happy Birthday from OpenTalk!"
+    subject = "🎉 Happy Birthday from Language Speaking App!"
     message = random.choice(BIRTHDAY_MESSAGES).replace("{username}", username)
     
     # Plain text fallback
-    plain_text = f"Dear {username},\n\n" + message.replace("<br>", "\n") + "\n\n– Team OpenTalk"
+    plain_text = f"Dear {username},\n\n" + message.replace("<br>", "\n") + "\n\n– Team Language Speaking App"
     
     # HTML version
     html_content = HTML_BIRTHDAY_TEMPLATE.format(
@@ -311,7 +312,7 @@ def send_single_email(server, sender_email, to_email, username):
     )
     
     msg = MIMEMultipart("alternative")
-    msg['From'] = f"OpenTalk <{sender_email}>"
+    msg['From'] = f"Language Speaking App <{sender_email}>"
     msg['To'] = to_email
     msg['Subject'] = subject
     msg['Reply-To'] = sender_email
