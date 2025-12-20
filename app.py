@@ -16,14 +16,14 @@ from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 from datetime import datetime
 import os
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 import random
 import logging
 import time
 import threading
 from functools import wraps
+
+# Resend for email (HTTP API - works on Render free tier)
+import resend
 
 # Try zoneinfo (Python 3.9+), fallback to pytz
 try:
@@ -46,15 +46,13 @@ logger = logging.getLogger("birthday_mail")
 # ------------------ Configuration ------------------
 class Config:
     MONGO_URI = os.environ.get("MONGO_URI")
-    SENDER_EMAIL = os.environ.get("SENDER_EMAIL")
-    SENDER_PASSWORD = os.environ.get("SENDER_PASSWORD")
+    RESEND_API_KEY = os.environ.get("RESEND_API_KEY")  # Get from resend.com
+    SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")  # Verified domain or default
     API_SECRET = os.environ.get("API_SECRET", "")  # Optional: Add security
     
     # Email settings
-    SMTP_SERVER = "smtp.gmail.com"
-    SMTP_PORT = 587
     EMAIL_BATCH_SIZE = 10  # Send emails in batches
-    EMAIL_DELAY_SECONDS = 2  # Delay between batches to avoid rate limiting
+    EMAIL_DELAY_SECONDS = 1  # Delay between batches
     MAX_RETRIES = 3
     
     # MongoDB settings
@@ -296,13 +294,10 @@ def get_today_birthdays():
     logger.info(f"Found {len(matches)} users with birthdays today")
     return matches
 
-def send_single_email(server, sender_email, to_email, username):
-    """Send a single birthday email with retry logic"""
+def send_single_email(sender_email, to_email, username):
+    """Send a single birthday email using Resend API"""
     subject = "🎉 Happy Birthday from Language Speaking App!"
     message = random.choice(BIRTHDAY_MESSAGES).replace("{username}", username)
-    
-    # Plain text fallback
-    plain_text = f"Dear {username},\n\n" + message.replace("<br>", "\n") + "\n\n– Team Language Speaking App"
     
     # HTML version
     html_content = HTML_BIRTHDAY_TEMPLATE.format(
@@ -311,24 +306,23 @@ def send_single_email(server, sender_email, to_email, username):
         footer=EMAIL_FOOTER
     )
     
-    msg = MIMEMultipart("alternative")
-    msg['From'] = f"Language Speaking App <{sender_email}>"
-    msg['To'] = to_email
-    msg['Subject'] = subject
-    msg['Reply-To'] = sender_email
-    msg['Bcc'] = sender_email  # BCC to sender so you can see sent emails
-    
-    msg.attach(MIMEText(plain_text, 'plain', 'utf-8'))
-    msg.attach(MIMEText(html_content, 'html', 'utf-8'))
-    
-    # Send to both recipient and BCC (sender)
-    recipients = [to_email, sender_email]
-    
     for attempt in range(Config.MAX_RETRIES):
         try:
-            server.sendmail(sender_email, recipients, msg.as_string())
-            return True
-        except smtplib.SMTPException as e:
+            params = {
+                "from": f"Language Speaking App <{sender_email}>",
+                "to": [to_email],
+                "subject": subject,
+                "html": html_content,
+            }
+            
+            email_response = resend.Emails.send(params)
+            
+            if email_response and email_response.get("id"):
+                return True
+            else:
+                logger.warning(f"Resend returned no ID for {to_email}")
+                
+        except Exception as e:
             logger.warning(f"Attempt {attempt + 1} failed for {to_email}: {e}")
             if attempt < Config.MAX_RETRIES - 1:
                 time.sleep(1)
@@ -336,21 +330,16 @@ def send_single_email(server, sender_email, to_email, username):
     return False
 
 def send_email_wishes(users):
-    """Send birthday emails to users in batches"""
+    """Send birthday emails to users using Resend API"""
+    api_key = Config.RESEND_API_KEY
     sender = Config.SENDER_EMAIL
-    password = Config.SENDER_PASSWORD
     
-    if not sender or not password:
-        logger.error("Email credentials not configured!")
-        return 0, "Email credentials not configured"
+    if not api_key:
+        logger.error("RESEND_API_KEY environment variable not configured!")
+        return 0, "RESEND_API_KEY not configured"
     
-    try:
-        server = smtplib.SMTP(Config.SMTP_SERVER, Config.SMTP_PORT, timeout=30)
-        server.starttls()
-        server.login(sender, password)
-    except Exception as e:
-        logger.error(f"SMTP connection failed: {e}")
-        return 0, f"SMTP connection failed: {str(e)}"
+    # Initialize Resend with API key
+    resend.api_key = api_key
     
     sent_count = 0
     failed_users = []
@@ -366,7 +355,7 @@ def send_email_wishes(users):
             if not to_email:
                 continue
             
-            success = send_single_email(server, sender, to_email, username)
+            success = send_single_email(sender, to_email, username)
             
             if success:
                 sent_count += 1
@@ -375,14 +364,9 @@ def send_email_wishes(users):
                 failed_users.append(username)
                 logger.error(f"❌ Failed to send to {username} ({to_email})")
         
-        # Delay between batches to avoid rate limiting
+        # Small delay between batches
         if i + Config.EMAIL_BATCH_SIZE < len(users):
             time.sleep(Config.EMAIL_DELAY_SECONDS)
-    
-    try:
-        server.quit()
-    except:
-        pass
     
     return sent_count, failed_users
 
@@ -411,7 +395,7 @@ def health_check():
     checks = {
         "service": "ok",
         "mongo": "checking...",
-        "smtp": "checking..."
+        "resend": "checking..."
     }
     
     # Check MongoDB
@@ -424,13 +408,13 @@ def health_check():
     except Exception as e:
         checks["mongo"] = f"error: {str(e)}"
     
-    # Check SMTP credentials
-    if Config.SENDER_EMAIL and Config.SENDER_PASSWORD:
-        checks["smtp"] = "configured"
+    # Check Resend API key
+    if Config.RESEND_API_KEY:
+        checks["resend"] = "configured"
     else:
-        checks["smtp"] = "not configured"
+        checks["resend"] = "not configured"
     
-    all_ok = checks["mongo"] == "ok" and checks["smtp"] == "configured"
+    all_ok = checks["mongo"] == "ok" and checks["resend"] == "configured"
     
     return jsonify({
         "healthy": all_ok,
@@ -542,25 +526,21 @@ def send_birthday_emails_endpoint():
 @app.route("/test-email")
 @require_ready
 def test_email():
-    """Send a test email to verify SMTP is working"""
+    """Send a test email to verify Resend is working"""
     test_email_addr = request.args.get("email")
     
     if not test_email_addr:
         return jsonify({"error": "Please provide ?email=your@email.com"}), 400
     
+    api_key = Config.RESEND_API_KEY
     sender = Config.SENDER_EMAIL
-    password = Config.SENDER_PASSWORD
     
-    if not sender or not password:
-        return jsonify({"error": "Email credentials not configured"}), 500
+    if not api_key:
+        return jsonify({"error": "RESEND_API_KEY not configured"}), 500
     
     try:
-        server = smtplib.SMTP(Config.SMTP_SERVER, Config.SMTP_PORT, timeout=30)
-        server.starttls()
-        server.login(sender, password)
-        
-        success = send_single_email(server, sender, test_email_addr, "Test User")
-        server.quit()
+        resend.api_key = api_key
+        success = send_single_email(sender, test_email_addr, "Test User")
         
         if success:
             return jsonify({"success": True, "message": f"Test email sent to {test_email_addr}"})
