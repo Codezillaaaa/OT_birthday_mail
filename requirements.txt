@@ -14,3 +14,6 @@ dnspython==2.4.2
 
 # Timezone support (fallback for Python < 3.9)
 pytz==2024.1
+
+# Email service (HTTP API - works on Render free tier)
+resend==2.0.0
