@@ -66,7 +66,8 @@ service_state = {
     "last_email_run": None,
     "total_emails_sent_today": 0,
     "is_ready": False,
-    "mongo_connected": False
+    "mongo_connected": False,
+    "last_result": None  # Stores result of last email sending
 }
 
 # ------------------ MongoDB Setup ------------------
@@ -476,10 +477,27 @@ def preview_birthdays():
         logger.error(f"Error in preview_birthdays: {e}", exc_info=True)
         return jsonify({"error": str(e), "users": []}), 500
 
+def send_emails_background(users, timestamp):
+    """Background function to send emails without blocking the response"""
+    try:
+        sent_count, failed = send_email_wishes(users)
+        service_state["last_email_run"] = timestamp
+        service_state["total_emails_sent_today"] = sent_count
+        service_state["last_result"] = {
+            "success": True,
+            "sent": sent_count,
+            "total": len(users),
+            "failed": len(failed) if isinstance(failed, list) else 0
+        }
+        logger.info(f"Background email sending complete: {sent_count}/{len(users)} sent")
+    except Exception as e:
+        logger.error(f"Background email sending failed: {e}", exc_info=True)
+        service_state["last_result"] = {"success": False, "error": str(e)}
+
 @app.route("/send-birthday-emails")
 @require_ready
 def send_birthday_emails_endpoint():
-    """Main endpoint to send birthday emails"""
+    """Main endpoint to send birthday emails - responds immediately, sends in background"""
     now = get_ist_now()
     
     # Fetch birthday users
@@ -493,21 +511,22 @@ def send_birthday_emails_endpoint():
             "timestamp": now.isoformat()
         })
     
-    logger.info(f"Starting to send emails to {len(users)} users...")
+    logger.info(f"Starting background email sending to {len(users)} users...")
     
-    # Send emails
-    sent_count, failed = send_email_wishes(users)
+    # Start background thread to send emails
+    email_thread = threading.Thread(
+        target=send_emails_background,
+        args=(users.copy(), now.isoformat()),
+        daemon=True
+    )
+    email_thread.start()
     
-    # Update state
-    service_state["last_email_run"] = now.isoformat()
-    service_state["total_emails_sent_today"] = sent_count
-    
+    # Respond immediately - don't wait for emails to complete
     return jsonify({
         "success": True,
-        "message": f"Sent birthday emails to {sent_count}/{len(users)} users.",
-        "emails_sent": sent_count,
+        "message": f"Started sending birthday emails to {len(users)} users in background.",
         "total_users": len(users),
-        "failed_count": len(failed) if isinstance(failed, list) else 0,
+        "status": "processing",
         "timestamp": now.isoformat()
     })
 
