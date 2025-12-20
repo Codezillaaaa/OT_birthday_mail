@@ -284,16 +284,13 @@ def send_single_email(server, sender_email, to_email, username):
     msg['To'] = to_email
     msg['Subject'] = subject
     msg['Reply-To'] = sender_email
-    msg['Bcc'] = sender_email  # BCC copy to sender
     
     msg.attach(MIMEText(plain_text, 'plain', 'utf-8'))
     msg.attach(MIMEText(html_content, 'html', 'utf-8'))
     
-    recipients = [to_email, sender_email]
-    
     for attempt in range(Config.MAX_RETRIES):
         try:
-            server.sendmail(sender_email, recipients, msg.as_string())
+            server.sendmail(sender_email, to_email, msg.as_string())
             return True
         except smtplib.SMTPException as e:
             logger.warning(f"Attempt {attempt + 1} failed for {to_email}: {e}")
