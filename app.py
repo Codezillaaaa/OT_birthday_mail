@@ -101,17 +101,21 @@ def init_mongo():
     logger.error("Failed to connect to MongoDB after all retries")
     return False
 
-# Initialize MongoDB on startup
+# Initialize MongoDB on startup (synchronous - works with Gunicorn workers)
 def startup_init():
-    """Background initialization to speed up cold starts"""
-    init_mongo()
-    service_state["is_ready"] = True
-    service_state["last_wake_time"] = datetime.now(IST).isoformat()
-    logger.info("Service initialization complete")
+    """Initialize service - must be called synchronously for Gunicorn workers"""
+    if init_mongo():
+        service_state["is_ready"] = True
+        service_state["last_wake_time"] = datetime.now(IST).isoformat()
+        logger.info("Service initialization complete")
+    else:
+        # Even if MongoDB fails, mark as ready so service can respond
+        service_state["is_ready"] = True
+        logger.warning("Service ready but MongoDB not connected")
 
-# Run initialization in background thread
-init_thread = threading.Thread(target=startup_init, daemon=True)
-init_thread.start()
+# Run initialization synchronously (not in background thread)
+# Background threads don't work properly with Gunicorn workers
+startup_init()
 
 # ------------------ Email Templates ------------------
 BIRTHDAY_MESSAGES = [
