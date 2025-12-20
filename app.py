@@ -213,9 +213,17 @@ def require_ready(f):
 DATE_FORMATS = ["%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%m/%d/%Y", "%Y/%m/%d"]
 
 def get_today_birthdays():
-    if not service_state["mongo_connected"]:
+    global users_col
+    
+    # Always ensure MongoDB connection is fresh (important for serverless)
+    if not service_state["mongo_connected"] or users_col is None:
         if not init_mongo():
+            logger.error("Failed to connect to MongoDB for birthday query")
             return []
+    
+    # Re-get the collection reference for serverless safety
+    if mongo_client is not None:
+        users_col = mongo_client["Opentalk"]["users"]
     
     now = get_ist_now()
     today_day = now.day
