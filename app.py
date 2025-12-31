@@ -8,6 +8,7 @@ Features:
 - IST timezone handling
 - Rate limiting to avoid Gmail blocking
 - Batch processing for large user lists
+- Dynamic app links based on user's platform from userdevices collection
 """
 
 from flask import Flask, jsonify, request
@@ -57,6 +58,17 @@ class Config:
     # MongoDB settings
     MONGO_TIMEOUT_MS = 10000
 
+# ============================================================================
+# CONFIGURATION - PLAY STORE BASE URL & DEFAULT PLATFORM
+# ============================================================================
+# The platform field from userdevices is appended to this base URL
+# Example: com.open.talk -> https://play.google.com/store/apps/details?id=com.open.talk
+PLAY_STORE_BASE_URL = "https://play.google.com/store/apps/details?id="
+
+# Default platform if user has no entries in userdevices
+DEFAULT_PLATFORM = "com.hello.talk"
+# ============================================================================
+
 # Global state
 service_state = {
     "is_ready": False,
@@ -68,10 +80,11 @@ service_state = {
 # ------------------ MongoDB Setup ------------------
 mongo_client = None
 users_col = None
+userdevices_col = None  # For platform lookup
 
 def init_mongo():
     """Initialize MongoDB connection with retry logic"""
-    global mongo_client, users_col
+    global mongo_client, users_col, userdevices_col
     
     if not Config.MONGO_URI:
         logger.error("MONGO_URI environment variable not set!")
@@ -86,6 +99,7 @@ def init_mongo():
             )
             mongo_client.admin.command('ping')
             users_col = mongo_client["test"]["users"]
+            userdevices_col = mongo_client["test"]["userdevices"]  # Platform lookup
             service_state["mongo_connected"] = True
             logger.info("MongoDB connected successfully!")
             return True
@@ -121,11 +135,12 @@ BIRTHDAY_MESSAGES = [
     "We hope your birthday brings you closer to your goals and to great conversations.",
 ]
 
-EMAIL_FOOTER = """
+# Footer template with {app_links} placeholder for dynamic platform-based links
+EMAIL_FOOTER_TEMPLATE = """
 <br><br>
 <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; margin-top: 20px;">
     <p style="color: white; font-size: 16px; margin-bottom: 15px;">Stay Connected with Language Speaking App!</p>
-    <a href="https://play.google.com/store/apps/details?id=com.open.talk" style="display: inline-block; background: white; color: #667eea; padding: 10px 16px; border-radius: 20px; text-decoration: none; margin: 4px; font-weight: bold; font-size: 14px;">Download App</a>
+    {app_links}
     <a href="https://t.me/AppOpentalk" style="display: inline-block; background: white; color: #667eea; padding: 10px 16px; border-radius: 20px; text-decoration: none; margin: 4px; font-weight: bold; font-size: 14px;">Telegram</a>
     <a href="https://www.instagram.com/english_speaking_app_official" style="display: inline-block; background: white; color: #667eea; padding: 10px 16px; border-radius: 20px; text-decoration: none; margin: 4px; font-weight: bold; font-size: 14px;">Instagram</a>
     <a href="https://www.youtube.com/@EnglishSpeakAppOfficial" style="display: inline-block; background: white; color: #667eea; padding: 10px 16px; border-radius: 20px; text-decoration: none; margin: 4px; font-weight: bold; font-size: 14px;">YouTube</a>
@@ -197,6 +212,76 @@ HTML_BIRTHDAY_TEMPLATE = """
 def get_ist_now():
     return datetime.now(IST)
 
+
+# ============================================================================
+# PLATFORM LOOKUP FUNCTIONS
+# ============================================================================
+def get_user_platforms(username):
+    """
+    Look up all unique platforms a user has registered on.
+    Queries userdevices collection by userName field.
+    
+    Returns: list of unique platform package names 
+             (e.g., ['com.open.talk', 'com.hello.talk'])
+    """
+    global userdevices_col
+    
+    if userdevices_col is None:
+        logger.warning("userdevices collection not initialized")
+        return []
+    
+    try:
+        devices = userdevices_col.find(
+            {"userName": username},
+            {"platform": 1, "_id": 0}
+        )
+        
+        # Extract unique platforms
+        platforms = set()
+        for device in devices:
+            platform = device.get("platform")
+            if platform and isinstance(platform, str) and platform.strip():
+                platforms.add(platform.strip())
+        
+        logger.debug(f"User {username} has platforms: {list(platforms)}")
+        return list(platforms)
+    except Exception as e:
+        logger.error(f"Error fetching platforms for {username}: {e}")
+        return []
+
+
+def generate_app_links_html(platforms):
+    """
+    Generate HTML for app download links based on user's platforms.
+    
+    - Single platform: "Download App" with link
+    - Multiple platforms: "Download App1", "Download App2", etc.
+    - No platforms: Default link to DEFAULT_PLATFORM
+    
+    Returns: HTML string with styled download button(s)
+    """
+    button_style = 'style="display: inline-block; background: white; color: #667eea; padding: 10px 16px; border-radius: 20px; text-decoration: none; margin: 4px; font-weight: bold; font-size: 14px;"'
+    
+    if not platforms:
+        # No platform found - use default
+        default_url = f"{PLAY_STORE_BASE_URL}{DEFAULT_PLATFORM}"
+        return f'<a href="{default_url}" {button_style}>Download App</a>'
+    
+    if len(platforms) == 1:
+        # Single platform - just "Download App"
+        url = f"{PLAY_STORE_BASE_URL}{platforms[0]}"
+        return f'<a href="{url}" {button_style}>Download App</a>'
+    
+    # Multiple platforms - "Download App1", "Download App2", etc.
+    links = []
+    for idx, platform in enumerate(platforms, start=1):
+        url = f"{PLAY_STORE_BASE_URL}{platform}"
+        links.append(f'<a href="{url}" {button_style}>Download App{idx}</a>')
+    
+    return " ".join(links)
+# ============================================================================
+
+
 def require_ready(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -213,7 +298,7 @@ def require_ready(f):
 DATE_FORMATS = ["%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%m/%d/%Y", "%Y/%m/%d"]
 
 def get_today_birthdays():
-    global users_col
+    global users_col, userdevices_col
     
     # Always ensure MongoDB connection is fresh (important for serverless)
     if not service_state["mongo_connected"] or users_col is None:
@@ -221,9 +306,10 @@ def get_today_birthdays():
             logger.error("Failed to connect to MongoDB for birthday query")
             return []
     
-    # Re-get the collection reference for serverless safety
+    # Re-get the collection references for serverless safety
     if mongo_client is not None:
         users_col = mongo_client["test"]["users"]
+        userdevices_col = mongo_client["test"]["userdevices"]
     
     now = get_ist_now()
     today_day = now.day
@@ -271,17 +357,29 @@ def get_today_birthdays():
     logger.info(f"Found {len(matches)} users with birthdays today")
     return matches
 
-def send_single_email(server, sender_email, to_email, username):
-    """Send a single birthday email with retry logic"""
+def send_single_email(server, sender_email, to_email, username, platforms=None):
+    """
+    Send a single birthday email with retry logic.
+    
+    Args:
+        platforms: List of platform package names user is registered on.
+                   Used to generate dynamic app download links.
+    """
     subject = "🎉 Happy Birthday from Language Speaking App!"
     message = random.choice(BIRTHDAY_MESSAGES).replace("{username}", username)
+    
+    # Generate dynamic app links based on user's platforms
+    app_links_html = generate_app_links_html(platforms or [])
+    
+    # Create footer with dynamic app links
+    footer = EMAIL_FOOTER_TEMPLATE.format(app_links=app_links_html)
     
     plain_text = f"Dear {username},\n\n" + message.replace("<br>", "\n") + "\n\n– Team Language Speaking App"
     
     html_content = HTML_BIRTHDAY_TEMPLATE.format(
         username=username,
         message=message,
-        footer=EMAIL_FOOTER
+        footer=footer
     )
     
     msg = MIMEMultipart("alternative")
@@ -305,7 +403,10 @@ def send_single_email(server, sender_email, to_email, username):
     return False
 
 def send_email_wishes(users):
-    """Send birthday emails to users in batches"""
+    """
+    Send birthday emails to users in batches.
+    Fetches each user's platforms from userdevices to generate dynamic app links.
+    """
     sender = Config.SENDER_EMAIL
     password = Config.SENDER_PASSWORD
     
@@ -334,11 +435,15 @@ def send_email_wishes(users):
             if not to_email:
                 continue
             
-            success = send_single_email(server, sender, to_email, username)
+            # Fetch user's platforms from userdevices
+            platforms = get_user_platforms(username)
+            
+            success = send_single_email(server, sender, to_email, username, platforms)
             
             if success:
                 sent_count += 1
-                logger.info(f"✅ Sent to {username} ({to_email})")
+                platforms_str = ", ".join(platforms) if platforms else "default"
+                logger.info(f"✅ Sent to {username} ({to_email}) - Platforms: [{platforms_str}]")
             else:
                 failed_users.append(username)
                 logger.error(f"❌ Failed to send to {username} ({to_email})")
@@ -423,13 +528,19 @@ def preview_birthdays():
         
         preview = []
         for user in users:
+            username = user.get("username", "")
             email = user.get("email", "")
             masked_email = email[:3] + "***" + email[email.find("@"):] if email and "@" in email else None
+            
+            # Get platforms for preview
+            platforms = get_user_platforms(username) if username else []
+            
             preview.append({
-                "username": user.get("username", ""),
+                "username": username,
                 "name": user.get("name", ""),
                 "email": masked_email,
-                "dob": user.get("dateOfBirth", "")
+                "dob": user.get("dateOfBirth", ""),
+                "platforms": platforms if platforms else [f"default: {DEFAULT_PLATFORM}"]
             })
         
         return jsonify({
@@ -478,9 +589,13 @@ def send_birthday_emails_endpoint():
 @require_ready
 def test_email():
     test_email_addr = request.args.get("email")
+    test_username = request.args.get("username", "Test User")
     
     if not test_email_addr:
-        return jsonify({"error": "Please provide ?email=your@email.com"}), 400
+        return jsonify({
+            "error": "Please provide ?email=your@email.com",
+            "optional": "Add &username=realuser to test with real platform lookup"
+        }), 400
     
     sender = Config.SENDER_EMAIL
     password = Config.SENDER_PASSWORD
@@ -493,11 +608,19 @@ def test_email():
         server.starttls()
         server.login(sender, password)
         
-        success = send_single_email(server, sender, test_email_addr, "Test User")
+        # Fetch platforms if real username provided
+        platforms = get_user_platforms(test_username) if test_username != "Test User" else []
+        
+        success = send_single_email(server, sender, test_email_addr, test_username, platforms)
         server.quit()
         
         if success:
-            return jsonify({"success": True, "message": f"Test email sent to {test_email_addr}"})
+            platforms_str = ", ".join(platforms) if platforms else "default"
+            return jsonify({
+                "success": True, 
+                "message": f"Test email sent to {test_email_addr}",
+                "platforms_used": platforms_str
+            })
         else:
             return jsonify({"success": False, "message": "Failed to send test email"}), 500
             
