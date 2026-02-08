@@ -45,7 +45,7 @@ logger = logging.getLogger("birthday_mail")
 # ------------------ Configuration ------------------
 class Config:
     MONGO_URI = os.environ.get("MONGO_URI")
-    SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "officialopentalk@gmail.com")
+    SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "contact.jain.apps@gmail.com")
     SENDER_PASSWORD = os.environ.get("SENDER_PASSWORD")
     
     # Email settings
@@ -639,3 +639,4 @@ def server_error(e):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
+
