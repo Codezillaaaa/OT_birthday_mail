@@ -492,6 +492,12 @@ def health_check():
     
     if Config.SENDER_EMAIL and Config.SENDER_PASSWORD:
         checks["smtp"] = "configured"
+        # Mask the email for verification (e.g., con***@gmail.com)
+        email = Config.SENDER_EMAIL
+        if "@" in email:
+            prefix, domain = email.split("@")
+            masked_email = prefix[:3] + "***@" + domain
+            checks["smtp_email"] = masked_email
     else:
         checks["smtp"] = "not configured"
     
@@ -639,4 +645,3 @@ def server_error(e):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
-
